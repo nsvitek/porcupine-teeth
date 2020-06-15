@@ -44,18 +44,15 @@ boxplot(iris$Petal.Length~iris$Species,col=flower.colors)
 
 # # # EXAMPLE:
 # perform a principal components analysis with the dataset
-<<<<<<< HEAD
 
 # First, log transform (ln, not log-10) the data. Generally a good idea with linear biological measurements
 # Note: Gingerich 2000 explores why biological data are log-transformed. Others do it for parametric convenience
 # call the object you make `iris_ln`. Use Google to figure out the correct function. 
-=======
 # first, log transform (ln, not log-10) the data. Generally a good idea with linear biological measurements
 # Note: Gingerich 2000 explores why biological data are log-transformed. There are many other papers on the topic.
->>>>>>> origin/master
 
 # perform the principal components analysis. In this case, we want to scale and center the data.
-iris_pca <- prcomp(iris_ln, center = TRUE, scale. = TRUE) #see why you called the previous object `iris_ln`?
+iris_pca <- prcomp(iris_ln, center = TRUE, scale. = TRUE) 
 
 # look at how much variation is explained by each newly made principal component
 summary(iris_pca) 
