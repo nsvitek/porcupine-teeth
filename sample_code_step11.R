@@ -1,15 +1,23 @@
 library(geomorph)
 library(dplyr)
 library(RColorBrewer)
+library(caret)
 
-# setwd("D:/Dropbox/Documents/research/mammals/porcupines/dental_variation/07192020-Porcupine_Project_Pilot_2/Combined_Digitized")
-setwd("C:/Users/N.S/Dropbox/Documents/research/mammals/porcupines/dental_variation/07192020-Porcupine_Project_Pilot_2/Combined_Digitized")
+setwd("D:/Dropbox/Documents/research/mammals/porcupines/dental_variation/07192020-Porcupine_Project_Pilot_2/Combined_Digitized")
+# setwd("C:/Users/N.S/Dropbox/Documents/research/mammals/porcupines/dental_variation/07192020-Porcupine_Project_Pilot_2/Combined_Digitized")
+
+#set color scheme 
+specimen.colors<-brewer.pal(n = 8, name = "Dark2") #set colors using R Color Brewer Palettes
+
 
 lm.raw<-readland.tps("digitized_aligned.tps") 
 dim(lm.raw) 
-
+lm.2d<-two.d.array(lm.raw)
 # PCA ------
 PCA<-prcomp(lm.2d, scale.=FALSE)
+
+#How much variation is explained by each axis?
+summary(PCA.complete)
 
 # metadata ---------
 metadata<-read.csv("PorcupineMetadataComplete.csv")
@@ -20,7 +28,7 @@ broken<-which(metadata$Specimen=="UF-M-7993" & metadata$Slice_from_Base==3 & met
 lm.complete<-lm.raw[,,-broken]
 metadata.complete<-metadata[-broken,]
 
-# Step 11 draft version ---------
+# Step 11 draft linear model, results---------
 #make a geomorph data frame
 weargdf<-geomorph.data.frame(coords=lm.complete,
                              wear=factor(metadata.complete$Slice_from_Base))
@@ -41,7 +49,7 @@ plot(linear.model, type = "diagnostics")
 # In a standard PCA, the main axis (PC1) is the one linear axis that can explain the greatest amount of variation all on its own. 
 # In the PC below, we're finding yet another perspective from which to look at the same data.
 # This time, "PC1" is major axis of fitted values, or the calculated regression line of the model. qa
-plot(linear.model, type = "PC", pch = 19, col = c("blue","red","green","yellow")[factor(metadata$Slice_from_Base)] )
+plot(linear.model, type = "PC", pch = 19, col = specimen.colors[factor(metadata$Slice_from_Base)] )
 
 # Use fitted values from the model to make prediction lines and
 # Use coefficients from the model to find the projected regression scores
@@ -78,3 +86,105 @@ PCA.residual<-prcomp(linear.model$residuals, scale.=FALSE)
 summary(PCA.residual)
 plot(PCA.residual$x[,1:2],pch=metadata.complete$Slice_from_Base,
      col=c("red","blue","green")[factor(metadata.complete$Specimen)])
+
+# Step 11 draft classification sample ----------
+#we will be analyzing PC scores, the landmarks themselves. Reduces the number of variables.
+PCA.complete<-two.d.array(lm.complete) %>% prcomp(.,scale.=FALSE)
+
+#we can't include all PCs in a predictive model unless we have many specimens (too many variables, over-fits)
+#consider including only the PCs that account for 95% of the data, or some other subset of PCs
+summary(PCA.complete)
+
+#put variable to be predicted (slice from base, or wear stage) and predictors (shape) in one object
+#to do LDA, "wear" must be factored into a categorical variable.
+#ex:
+classification.set<-data.frame(wear = factor(metadata.complete$Slice_from_Base),PCA.complete$x[,1:6])
+
+#otherwise, for other models, data do not necessarily need to be categorical
+classification.set<-data.frame(wear = metadata.complete$Slice_from_Base,PCA.complete$x[,1:6])
+
+#split the dataset
+set.seed(100)
+inTrain<-createDataPartition(y=classification.set$wear, p=0.75, list=FALSE)
+
+#create training and testing dataset
+training<-classification.set[inTrain,]
+testing<-classification.set[-inTrain,]
+
+#take a look at the first few PCs to see which ones are likely to be predictive
+featurePlot(x = training[,2:ncol(classification.set)],  y = training$wear)
+
+#recursive feature elimination below isn't completely applicable to PCs
+#because they have to be used sequentially
+#(for example: it's okay to use PCs 1-5, but not PCs 1, 5,6,7, and 10),
+#but it will give us an indication of which PCs are likely to be important
+#which will help inform whether we sample, say, all PCs or PCS 1-3 or PCs 1-14, etc.
+#code copied from https://www.machinelearningplus.com/machine-learning/caret-package/
+set.seed(100)
+options(warn=-1)
+subsets <- c(1:5, 10, 15, 18)
+ctrl <- rfeControl(functions = rfFuncs,
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+lmProfile <- rfe(x=training[, 2:ncol(training)], y=training$wear,
+                 sizes = subsets,
+                 rfeControl = ctrl)
+lmProfile #do the results make sense based on our PC plots, linear model, and the diagnostic feature plot?
+
+#the models we will try are 'lda','rf', then two different svm: 'svmLinear' and 'svmPoly'
+
+#first, linear discriminant analysis, the classic. 
+#change evaluation to k-fold cross-validation ['repeatedcv'] instead of default bootstrapping
+ctrl <- trainControl(method = "repeatedcv", repeats = 5)
+#quick intro to k-fold cross-validation: https://machinelearningmastery.com/k-fold-cross-validation/
+
+#build training model
+#to do LDA, "wear" must be factored into a categorical variable.
+ldaFit <- train(
+  wear ~ . , #model: predict wear using the rest of the variables
+  data = training,
+  method = "lda",
+  tuneLength = 10, #try different values of k from 1 to 10
+  trControl = ctrl #implement the ctrl evaluation settings specified above
+)
+
+#if you wanted to use random forest instead of LDA:
+#factoring is not necessary for random forest or SVM
+rfFit <- train(
+  wear ~ ., #model: predict wear using the rest of the variables
+  data = training,
+  method = "rf",
+  tuneLength=10,
+  trControl = ctrl) #implement the ctrl evaluation settings specified above
+
+#use model to predict values for testing dataset (the 25% left out to help evaluate model performance)
+ldaProbs <- predict(ldaFit, newdata = testing, type = "prob") #only for factored data
+ldaClasses <- predict(ldaFit, newdata = testing) 
+
+rfClasses<-predict(rfFit, newdata = testing) #example of possibilities for regression instead of categorical
+
+#how do predicted values compare to real values?
+cbind(ldaProbs, ldaClasses, testing$wear)
+cbind(rfClasses, testing$wear)
+
+#another way of looking at predicted vs. real classification: Confusion matrix
+conf.mat<-confusionMatrix(data = ldaClasses, testing$wear) #only for factored data
+
+
+conf.mat$table %>%
+  data.frame() %>% 
+  mutate(Prediction = factor(Prediction, levels = levels(factor(classification.set$wear)))) %>%
+  group_by(Reference) %>% 
+  mutate(
+    total = sum(Freq),
+    frac_fill = if_else(Prediction == Reference, Freq / total, 0),
+    frac = Freq / total * frac_fill
+  ) %>%
+  ggplot(aes(Prediction, Reference, fill = frac_fill)) +
+  geom_tile() +
+  geom_text(aes(label = paste(Freq, ", ", round(frac * 100), "%")), size = 6) +
+  scale_fill_gradient(low = "white", high = "#badb33") +
+  scale_x_discrete(position = "top") +
+  geom_tile(color = "black", fill = "black", alpha = 0)
+
