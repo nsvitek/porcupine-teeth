@@ -86,7 +86,35 @@ PCA.residual<-prcomp(linear.model$residuals, scale.=FALSE)
 summary(PCA.residual)
 plot(PCA.residual$x[,1:2],pch=metadata.complete$Slice_from_Base,
      col=c("red","blue","green")[factor(metadata.complete$Specimen)])
+legend('topleft',legend = levels(factor(metadata.complete$Specimen)),col=c("red","blue","green"),pch=16)
+text(PCA.residual$x[,1],PCA.residual$x[,2],labels=substr(metadata.complete$File_Name,30,44))
 
+head(metadata.complete)
+
+#Visualize shapes
+#Another approach to achieve the same kind of PCA, using functions from the geomorph package
+#First, add mean shape back to residuals for later plotting. 
+#This next line of code is not elegant or recommended but it gets the job done.
+for(i in 1:dim(remaining.shape)[3]){ remaining.shape[,,i]<-remaining.shape[,,i] + M}
+
+#use geomorphs PCA
+PCA.residuals2<-gm.prcomp(remaining.shape)
+
+#plot PCA plot
+plot(PCA.residuals2)
+plot(PCA.residuals2,col=c("red","blue","green")[factor(metadata.complete$Specimen)])
+legend('topleft',legend = levels(factor(metadata.complete$Specimen)),col=c("red","blue","green"),pch=16)
+
+#shape predicted by minimum PC1 value, arrows point to mean shape. mshape() function calculates mean shape.
+plotRefToTarget(PCA.residuals2$shapes$shapes.comp1$min, mshape(remaining.shape), 
+                method = "vector")
+#shape predicted by maximum PC1 value, same setup
+plotRefToTarget(PCA.residuals2$shapes$shapes.comp1$max, mshape(remaining.shape), 
+                method = "vector")
+
+#compare maximum (points) to minimum (arrow)
+plotRefToTarget(PCA.residuals2$shapes$shapes.comp1$max, PCA.residuals2$shapes$shapes.comp1$min, 
+                method = "vector")
 # Step 11 draft classification sample ----------
 #we will be analyzing PC scores, the landmarks themselves. Reduces the number of variables.
 PCA.complete<-two.d.array(lm.complete) %>% prcomp(.,scale.=FALSE)
