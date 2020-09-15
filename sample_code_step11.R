@@ -116,7 +116,7 @@ plotRefToTarget(PCA.residuals2$shapes$shapes.comp1$max, mshape(remaining.shape),
 plotRefToTarget(PCA.residuals2$shapes$shapes.comp1$max, PCA.residuals2$shapes$shapes.comp1$min, 
                 method = "vector")
 # Step 11 draft classification sample ----------
-#we will be analyzing PC scores, the landmarks themselves. Reduces the number of variables.
+#we will be analyzing PC scores of the landmarks themselves. Reduces the number of variables.
 PCA.complete<-two.d.array(lm.complete) %>% prcomp(.,scale.=FALSE)
 
 #we can't include all PCs in a predictive model unless we have many specimens (too many variables, over-fits)
@@ -124,33 +124,42 @@ PCA.complete<-two.d.array(lm.complete) %>% prcomp(.,scale.=FALSE)
 summary(PCA.complete)
 
 #put variable to be predicted (slice from base, or wear stage) and predictors (shape) in one object
-#to do LDA, "wear" must be factored into a categorical variable.
-#ex:
-classification.set<-data.frame(wear = factor(metadata.complete$Slice_from_Base),PCA.complete$x[,1:6])
-
-#otherwise, for other models, data do not necessarily need to be categorical
 classification.set<-data.frame(wear = metadata.complete$Slice_from_Base,PCA.complete$x[,1:6])
 
-#split the dataset
+#split the dataset: https://topepo.github.io/caret/data-splitting.html
 set.seed(100)
 inTrain<-createDataPartition(y=classification.set$wear, p=0.75, list=FALSE)
 
-#create training and testing dataset
+#create training and testing dataset. Validation will be carried out on the 'testing' dataset
+#(remaining 25% of sample)
 training<-classification.set[inTrain,]
 testing<-classification.set[-inTrain,]
 
 #take a look at the first few PCs to see which ones are likely to be predictive
+#three ways of plotting essentially the same information
+#These are just exploratory plots. They should match statistical results later but you 
+#don't need these necessarily.
 featurePlot(x = training[,2:ncol(classification.set)],  y = training$wear)
 
+featurePlot(x = training[,2:ncol(classification.set)],  y = training$wear,plot="pairs")
+
+featurePlot(x = training[,2:ncol(classification.set)],  y = training$wear, 
+            plot="pairs", groups=training$wear)
+
+#A second optional step: 
 #recursive feature elimination below isn't completely applicable to PCs
 #because they have to be used sequentially
 #(for example: it's okay to use PCs 1-5, but not PCs 1, 5,6,7, and 10),
 #but it will give us an indication of which PCs are likely to be important
 #which will help inform whether we sample, say, all PCs or PCS 1-3 or PCs 1-14, etc.
 #code copied from https://www.machinelearningplus.com/machine-learning/caret-package/
+#see more at https://topepo.github.io/caret/recursive-feature-elimination.html#rfeexample
 set.seed(100)
 options(warn=-1)
+# The simulation will fit models with subset sizes of 18, 15, 10, 5, 4, 3, 2, 1.
 subsets <- c(1:5, 10, 15, 18)
+
+#rfeControl() and rfe() appear to be paired functions
 ctrl <- rfeControl(functions = rfFuncs,
                    method = "repeatedcv",
                    repeats = 5,
@@ -159,8 +168,12 @@ lmProfile <- rfe(x=training[, 2:ncol(training)], y=training$wear,
                  sizes = subsets,
                  rfeControl = ctrl)
 lmProfile #do the results make sense based on our PC plots, linear model, and the diagnostic feature plot?
+#Let's say we started out by using the first 6 PCs. Do the results of lm profile indicate that PC6 is important?
+#how about PC5? etc.
 
-#the models we will try are 'lda','rf', then two different svm: 'svmLinear' and 'svmPoly'
+#Done choosing variables. 
+#Now, choose different algorithms, build models of tooth wear using each algorithm, and compare models.
+#the models we will try here are 'lda','rf'
 
 #first, linear discriminant analysis, the classic. 
 #change evaluation to k-fold cross-validation ['repeatedcv'] instead of default bootstrapping
@@ -170,7 +183,7 @@ ctrl <- trainControl(method = "repeatedcv", repeats = 5)
 #build training model
 #to do LDA, "wear" must be factored into a categorical variable.
 ldaFit <- train(
-  wear ~ . , #model: predict wear using the rest of the variables
+  factor(wear) ~ . , #model: predict wear using the rest of the variables
   data = training,
   method = "lda",
   tuneLength = 10, #try different values of k from 1 to 10
@@ -196,10 +209,12 @@ rfClasses<-predict(rfFit, newdata = testing) #example of possibilities for regre
 cbind(ldaProbs, ldaClasses, testing$wear)
 cbind(rfClasses, testing$wear)
 
-#another way of looking at predicted vs. real classification: Confusion matrix
-conf.mat<-confusionMatrix(data = ldaClasses, testing$wear) #only for factored data
+#another way of looking at reults:
+#compare frequencies of mismatch between predicted vs. real classification: Confusion matrix
+conf.mat<-confusionMatrix(data = ldaClasses, factor(testing$wear)) #only for factored data
 
-
+#this code copied and pasted as a way to visualize a confusion matrix: 
+#plot shows how often right category was predicted and frequency of types of mis-identifications
 conf.mat$table %>%
   data.frame() %>% 
   mutate(Prediction = factor(Prediction, levels = levels(factor(classification.set$wear)))) %>%
