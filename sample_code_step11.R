@@ -95,14 +95,16 @@ head(metadata.complete)
 #Another approach to achieve the same kind of PCA, using functions from the geomorph package
 #First, add mean shape back to residuals for later plotting. 
 #This next line of code is not elegant or recommended but it gets the job done.
-for(i in 1:dim(remaining.shape)[3]){ remaining.shape[,,i]<-remaining.shape[,,i] + M}
+remaining.shape.vis<-remaining.shape
+for(i in 1:dim(remaining.shape)[3]){ remaining.shape.vis[,,i]<-remaining.shape[,,i] + M}
 
+# use geomorph PCA to look at residual shape -------
 #use geomorphs PCA
-PCA.residuals2<-gm.prcomp(remaining.shape)
+PCA.residuals2<-gm.prcomp(remaining.shape.vis)
 
 #plot PCA plot
 plot(PCA.residuals2)
-plot(PCA.residuals2,col=c("red","blue","green")[factor(metadata.complete$Specimen)])
+plot(PCA.residuals2,col=c("red","blue","green")[factor(metadata.complete$Specimen)],pch=metadata.complete$Slice_from_Base)
 legend('topleft',legend = levels(factor(metadata.complete$Specimen)),col=c("red","blue","green"),pch=16)
 
 #shape predicted by minimum PC1 value, arrows point to mean shape. mshape() function calculates mean shape.
@@ -115,6 +117,44 @@ plotRefToTarget(PCA.residuals2$shapes$shapes.comp1$max, mshape(remaining.shape),
 #compare maximum (points) to minimum (arrow)
 plotRefToTarget(PCA.residuals2$shapes$shapes.comp1$max, PCA.residuals2$shapes$shapes.comp1$min, 
                 method = "vector")
+
+dim(remaining.shape.vis)
+plot(remaining.shape.vis[,,3])
+
+#figure out which rows ( = specimens) have maximum PC2 values: those are probably the blue squares
+str(PCA.residuals2)
+which(PCA.residuals2$x[,2]>=0.06 & PCA.residuals2$x[,1]>=0.05)
+#blue squares are specimen rows 16 20 24 51 55 59
+
+#this is an example of a shape and a file that occupy upper right quadrant of graph
+plot(remaining.shape.vis[,,16], pch=21, bg="red")
+metadata.complete$File_Name[16]
+
+# Q1 # ------
+#### what is the shape "gap" between slice 0 and slice 1 in all three specimen? Why is there such a big gap?
+#sub-question 1: what is the "residual shape" of slice 1 and 2 for UF-M-23235? 
+#do residual shapes *look* more similar to each other than original shapes?
+which(metadata.complete$Specimen=="UF-M-23235" & metadata.complete$Slice_from_Base_Original==2) %>%
+  metadata.complete$File_Name[.]
+
+#equivalent formation:
+any.variable<-which(metadata.complete$Specimen=="UF-M-23235" & metadata.complete$Slice_from_Base_Original==2)
+metadata.complete$File_Name[any.variable]
+# shape for slice 2: 15 19 23 50 54 58
+
+which(metadata.complete$Specimen=="UF-M-23235" & metadata.complete$Slice_from_Base_Original==1)
+# shape for slice 1: 14 18 22 49 53 57
+
+plot(remaining.shape.vis[,,14], pch=21, bg="blue")
+plot(remaining.shape.vis[,,15], pch=21, bg="lightblue")
+
+# Q2 # -------
+#### why is the order reversed between the two set of specimens? 
+
+#so what is the shape in the lower right quadrant?
+which(PCA.residuals2$x[,2]>=0.06 & PCA.residuals2$x[,1]>=0.05)
+
+
 # Step 11 draft classification sample ----------
 #we will be analyzing PC scores of the landmarks themselves. Reduces the number of variables.
 PCA.complete<-two.d.array(lm.complete) %>% prcomp(.,scale.=FALSE)
