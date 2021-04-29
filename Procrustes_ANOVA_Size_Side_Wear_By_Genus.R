@@ -24,7 +24,9 @@ metadata$Identity<-paste(metadata$Specimen,metadata$Molar,
 
 errorGM<-function(ANOVA,r,f1=1,f2=2){ #f1 and f2 are which factors you want to compare
   #default f1 and f2 assume only one level in ANOVA, not nested
-  # Fruciano 2016 repeatibility
+  #Fruciano 2016 repeatibility
+  #note also that f1 should be the between-individual component
+  #and f2 should be the within-individual component
   s.among<-(ANOVA$MS[f1]-ANOVA$MS[f2])/r
   repeatability<-s.among/(ANOVA$MS[f2]+s.among)
   # Yezerinac et al. 1992 p. 474 % measurement error
@@ -36,15 +38,16 @@ errorGM<-function(ANOVA,r,f1=1,f2=2){ #f1 and f2 are which factors you want to c
 
 error_df <- data.frame()
 #------------------------------------- MACRO ---------------------------
-macro_gdf<-geomorph.data.frame(coords=PCA$x[,1:25],
-                             specimen=factor(metadata$Identity),
-                             size=metadata$Identity,
+macro_gdf<-geomorph.data.frame(coords=lm.2d, #before error has been calculated, shape should be quantified entire shape, either all PC scores or as the Procrustes-aligned coordinates
+                             specimen=factor(metadata$Specimen),
+                             identity=factor(metadata$Identity),
+                             size=metadata$Centroid_Size, #"specimen" and "size were both mapped to Identity. Do you want Size here?
                              side=factor(metadata$Side),
                              wear=factor(metadata$Slice_from_Base),
                              genus=factor(metadata$Genus)
 )
-#Procrustes Regression for size
-errorANOVA<-procD.lm(coords~specimen+size,data=macro_gdf,iter=99)
+#Procrustes Regression
+errorANOVA<-procD.lm(coords~specimen,data=macro_gdf,iter=99)
 #Procrustes ANOVA
 errorANOVA$aov.table
 #error on landmarking due to size by keeping the same specimen but varying the size
@@ -73,12 +76,20 @@ err<-errorGM(errorANOVA$aov.table,r=avg.number.replicates,f1=1,f2=2)
 #append to result
 error_df<-rbind(error_df, list('group'='macro', 'type'='wear','repeatability'=err$repeatability, 'PME'=err$PME))
 
+#Procrustes Regressions looking at effect of allometry
+#does it matter that the two genera are distinctly different in body size?
+allometryANOVA<-procD.lm(coords~genus*size,data=macro_gdf,iter=99)
+allometryANOVA$aov.table
+
+#just to check: does centroid size follow the prediction that Erethizon is larger than Coendou?
+boxplot(metadata$Centroid_Size~metadata$Genus) #yes
+
 #------------------------------------- Coendou ---------------------------
 #constructing geomorph data frame for coendou
 coendou_id <- which(metadata$Genus == "Coendou")
 coendou_gdf<-geomorph.data.frame(coords=PCA$x[coendou_id,1:25],
                              specimen=factor(metadata[coendou_id,]$Identity),
-                             size=metadata[coendou_id,]$Identity,
+                             size=metadata[coendou_id,]$Centroid_Size,
                              side=factor(metadata[coendou_id,]$Side),
                              wear=factor(metadata[coendou_id,]$Slice_from_Base)
 )
@@ -86,9 +97,9 @@ coendou_gdf<-geomorph.data.frame(coords=PCA$x[coendou_id,1:25],
 coendou_data <- metadata[coendou_id, ]
 
 #Procrustes Regression for size
-errorANOVA<-procD.lm(coords~specimen+size,data=coendou_gdf,iter=99)
+allometryANOVA<-procD.lm(coords~specimen+size,data=coendou_gdf,iter=99)
 #Procrustes ANOVA
-errorANOVA$aov.table
+allometryANOVA$aov.table
 #error on landmarking due to size by keeping the same specimen but varying the size
 avg.number.replicates<-nrow(coendou_data)/(unique(c(coendou_data$Identity)) %>% length)
 err<-errorGM(errorANOVA$aov.table,r=avg.number.replicates,f1=1,f2=2)
