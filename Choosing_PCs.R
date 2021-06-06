@@ -1,33 +1,10 @@
-library(geomorph)
-library(dplyr)
-library(RColorBrewer)
-library(caret)
-
-setwd("E:\\Pilot_Dataset_3_Digitized")
-
-#settings for classification following Courtenay et al. 2019
-replicates=1000
-
-lm.raw<-readland.tps("digitized_aligned.tps")
-dim(lm.raw)
-lm.2d<-two.d.array(lm.raw)
-# metadata ---------
-metadata<-read.csv("Digitized_Porcupine_Dataset_3.csv")
-head(metadata)
-
-nrow(lm.2d)==nrow(metadata) #check for same number of items in each dataset.
-
-#using on a smaller dataset for working out the code
-only.2<-which(metadata$Slice_from_Base==2)
-lm.2<-lm.2d[only.2,]
-metadata.2<-metadata[only.2,]
-# classification example: formatting data ----------
+# classification: formatting data ----------
 #we will be analyzing PC scores of the landmarks themselves. Reduces the number of variables.
-PCA<-lm.2d %>% prcomp(.,scale.=FALSE)
+PCA.extant<-lm.2d.extant %>% prcomp(.,scale.=FALSE)
 
 #we can't include all PCs in a predictive model unless we have many specimens (too many variables, over-fits)
 #consider including only the PCs that account for 95% of the data, or some other subset of PCs
-summary(PCA)
+summary(PCA) #PC16 (rounding up) or PC17 get to 95%
 
 #put variable to be predicted (genus) and predictors (shape) in one object
 classification.set<-data.frame(genus = as.factor(metadata$Genus),PCA$x)
@@ -36,6 +13,7 @@ classification.set<-data.frame(genus = as.factor(metadata$Genus),PCA$x)
 set.seed(100)
 inTrain<-createDataPartition(y=classification.set$genus, p=0.7, list=FALSE)
 
+?
 #create training and testing dataset. Validation will be carried out on the 'testing' dataset
 #(remaining 20% of sample)
 training<-classification.set[inTrain,]
