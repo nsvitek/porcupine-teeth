@@ -150,11 +150,11 @@ for(i in wear.range){
 
   cairo_pdf(paste("predicted_shape_erethizon_",i,".pdf",sep=""))
   plotRefToTarget(erethizon.shape,avg.model.shape,method="points",
-                  gridPars=gridPar(pt.bg=ptol_pal()(2)[2], pt.size=2))
+                  gridPars=gridPar(pt.bg=scale_taxon[7], pt.size=2))
   dev.off()
   cairo_pdf(paste("predicted_shape_coendou_",i,".pdf",sep=""))
   plotRefToTarget(coendou.shape,avg.model.shape,method="points",
-                  gridPars=gridPar(pt.bg=ptol_pal()(2)[1], pt.size=2))
+                  gridPars=gridPar(pt.bg=scale_taxon[1], pt.size=2))
   dev.off()
 }
 

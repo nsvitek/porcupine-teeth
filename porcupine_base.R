@@ -2,20 +2,24 @@
 library(geomorph)
 library(dplyr)
 library(ggplot2)
-library(ggthemes) #ptol_pal
+# library(ggthemes) #ptol_pal
 library(car) #modelling of ratios
 library(caret)
+library(inlmisc) #for more Paul Tol color options
+library(reshape2) #for reformatting linear data to facet
 
 scriptsdir <- "C://scripts/porcupine-teeth"
 source(paste(scriptsdir,"/../observer-free-morphotype-characterization/find_repeatablePCs.R",sep=""))
 source(paste(scriptsdir,"/calculate_error.R",sep=""))
-
 
 iterations<-99 #bootstrap number, low for now, increase for final calcs
 
 #for plotting
 single.column.width<-3.27
 double.column.width<-6.61
+scale_n<-as.character(GetColors(10,scheme="sunset"))
+scale_slice<-as.character(GetColors(9,scheme="discrete rainbow"))
+scale_taxon<-as.character(GetColors(9,scheme="muted"))
 
 # Data Input ------
 setwd("D://Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
@@ -107,7 +111,7 @@ ggplot(data=metadata.avg,aes(x=PC1,y=PC2))+
   theme_classic() +
   xlab(paste("PC 1 (",PCA.perc[1],"%)",sep="")) +
   ylab(paste("PC 2 (",PCA.perc[2],"%)",sep="")) + 
-  scale_color_manual(values=ptol_pal()(8)) +
+  scale_color_manual(values=scale_taxon) +
   scale_shape_manual(values=c(rep(16,6), 17, 15)) + 
   theme(legend.text=element_text(face="italic"))
 ggsave("PCA_spp.pdf", device = cairo_pdf, width = 12, height = 8,units="cm",dpi=600)
@@ -117,7 +121,7 @@ ggplot(data=metadata.avg,aes(x=PC1,y=PC2))+
   theme_classic() +
   xlab(paste("PC 1 (",PCA.perc[1],"%)",sep="")) +
   ylab(paste("PC 2 (",PCA.perc[2],"%)",sep="")) + 
-  scale_color_manual(name="Slice",values=ptol_pal()(9)) +
+  scale_color_manual(name="Slice",values=scale_slice) +
   scale_shape_manual(values=c(rep(16,6), 17, 15))
 ggsave("PCA_wear2.pdf", device = cairo_pdf, width = 12, height = 12,units="cm",dpi=600)
 
@@ -135,13 +139,50 @@ metadata.extant<-metadata.avg[-which(metadata.avg$Species %in% c("kleini")),]
 dim(metadata.extant)
 head(metadata.extant)
 
-metadata.extant<- metadata.extant %>% mutate(anterofossettid_ratio = anterofossettid_length/anterofossettid_width,
-                           mesolophid_ratio = max_length_hypolophid/max_length_mesoflexid,
-                           ectolophid_ratio = ectolophid_width/talonid_width,
-                           posterolophid_evenness = mid_posterolophid_length/max_posterolophid_length)
+metadata.extant<- metadata.extant %>% mutate("Anterofossettid Ratio" = anterofossettid_length/anterofossettid_width,
+                           "Hypolophid Ratio" = max_length_hypolophid/max_length_mesoflexid,
+                           "Ectolophid Ratio" = ectolophid_width/talonid_width,
+                           "Posterolophid Evenness" = mid_posterolophid_length/max_posterolophid_length,
+                           "Anterofossettid Angle" = anterofossettid_angle)
 
 metadata.extant$Genus<-factor(metadata.extant$Genus)
 metadata.extant$Slice_from_Base<-factor(metadata.extant$Slice_from_Base)
+
+linear2plot<-metadata.extant %>% ungroup %>% 
+  select(Genus, Slice_from_Base,"Anterofossettid Angle", "Anterofossettid Ratio","Hypolophid Ratio",
+         "Ectolophid Ratio","Posterolophid Evenness") %>%
+  melt(id=c("Genus","Slice_from_Base"))
+
+
+ggplot(linear2plot, aes(x=Genus, y = value)) + 
+  geom_boxplot() + 
+  geom_jitter(aes(color=as.factor(Slice_from_Base)))  + 
+  theme_minimal() + scale_color_manual(name="Slice",values=scale_slice) +
+  # facet_grid() + 
+  facet_wrap(vars(variable), scales="free_y", strip.position="top")+
+  theme(axis.title.y = element_blank(), axis.text.x = element_text(face="italic"),
+        strip.text.y.right = element_text(angle=0))
+ggsave("linear_boxplots.pdf", device = cairo_pdf, width = double.column.width, 
+       height = double.column.width,units="in",dpi=600)
+
+
+# variables for plotting categorical
+metadata.extant$metaflexid_closure<-"closed" #metaflexid closed
+metadata.extant$metaflexid_closure[which(metadata.extant$metaflexid==1)]<-"open" #metaflexid open
+metadata.extant$genus_state_metaflexid<-paste(metadata.extant$metaflexid_closure, metadata.extant$Genus)
+count_metaflexid<-metadata.extant %>% 
+  group_by(genus_state_metaflexid, Slice_from_Base, metaflexid_closure) %>% tally
+
+ggplot(data = count_metaflexid, aes(x = genus_state_metaflexid, y = Slice_from_Base, fill = factor(n))) + 
+  geom_tile() + theme_minimal() + 
+  theme(axis.title.x = element_blank()) + ylab("Wear (Slice Number)") +
+  scale_fill_manual( "Number of\nSpecimens", values=scale_n)
+ggsave("metaflexid_open.pdf", device = cairo_pdf, width = single.column.width, 
+       height = single.column.width,units="in",dpi=600)
+
+
+
+?GetColors
 
 fit <- lm(metaflexid ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
 Anova(fit, type=2)
@@ -169,46 +210,6 @@ Anova(fit, type=2)
 # 
 # summary(linear.PCA)
 
-ggplot(metadata.extant, aes(x=Genus, y=anterofossettid_angle)) + #promising
-  geom_jitter(aes(color=as.factor(Slice_from_Base)))  + 
-  labs(color='Slice From Base') +
-  theme_minimal()
-
-ggplot(metadata.extant, aes(x=Genus, y=anterofossettid_ratio)) + #less promising
-  geom_jitter(aes(color=as.factor(Slice_from_Base)))  + 
-  labs(color='Slice From Base') +
-  theme_minimal()
-
-ggplot(metadata.extant, aes(x=Genus, y=mesolophid_ratio)) + #less promising
-  geom_jitter(aes(color=as.factor(Slice_from_Base)))  + 
-  labs(color='Slice From Base') +
-  theme_minimal()
-
-ggplot(metadata.extant, aes(x=Genus, y=ectolophid_ratio)) + #not promising
-  geom_jitter(aes(color=as.factor(Slice_from_Base)))  + 
-  labs(color='Slice From Base') +
-  theme_minimal()
-
-ggplot(metadata.extant, aes(x=Genus, y=posterolophid_evenness)) + #maybe promising if accounting for wear
-  geom_jitter(aes(color=as.factor(Slice_from_Base)))  + 
-  labs(color='Slice From Base') +
-  theme_minimal()
-
-ggplot(metadata.extant, aes(x=anterofossettid_angle, y=posterolophid_evenness)) + 
-  geom_point(aes(shape=as.factor(Slice_from_Base), color = Genus))  + 
-  labs(color='Slice From Base') +
-  theme_minimal()
-
-# variables for plotting categortical
-
-metadata.extant$metaflexid_closure<-"closed" #metaflexid closed
-metadata.extant$metaflexid_closure[which(metadata.extant$metaflexid==1)]<-"open" #metaflexid open
-
-metadata.extant$genus_state_metaflexid<-paste(metadata.extant$metaflexid_closure, metadata.extant$Genus)
-
-count_metaflexid<-metadata.extant %>% group_by(genus_state_metaflexid, Slice_from_Base, metaflexid_closure) %>% tally
-ggplot(data = count_metaflexid, aes(x = genus_state_metaflexid, y = Slice_from_Base, fill = n)) + 
-  geom_tile() + theme_minimal()
 
 
 # Crown Height ------
