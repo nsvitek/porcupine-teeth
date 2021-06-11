@@ -13,13 +13,12 @@ classification.set<-data.frame(genus = as.factor(metadata.extant$Genus),PCA.exta
 #https://topepo.github.io/caret/data-splitting.html
 set.seed(100)
 
-#because slices within specimens are not independent from another, need to randomly sample specimens, not slices
+#because slices within specimens are not independent from another, need to randomly sample at the level of specimens, not slices
+train.specimen<-droplevels(metadata.extant$Specimen) %>% levels() %>% 
+  as.data.frame(.) %>% sample_frac(0.7)
+inTrain<-which(metadata.extant$Specimen %in% train.specimen$.) 
 
-inTrain<-createDataPartition(y=classification.set$genus, p=0.7, list=FALSE)
-
-?createDataPartition
 #create training and testing dataset. Validation will be carried out on the 'testing' dataset
-#(remaining 20% of sample)
 training<-classification.set[inTrain,]
 testing<-classification.set[-inTrain,]
 
