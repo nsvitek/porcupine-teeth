@@ -4,16 +4,20 @@ PCA.extant<-lm.2d.extant %>% prcomp(.,scale.=FALSE)
 
 #we can't include all PCs in a predictive model unless we have many specimens (too many variables, over-fits)
 #consider including only the PCs that account for 95% of the data, or some other subset of PCs
-summary(PCA) #PC16 (rounding up) or PC17 get to 95%
+summary(PCA.extant) #PC16 (rounding up) or PC17 get to 95%
 
 #put variable to be predicted (genus) and predictors (shape) in one object
-classification.set<-data.frame(genus = as.factor(metadata$Genus),PCA$x)
+classification.set<-data.frame(genus = as.factor(metadata.extant$Genus),PCA.extant$x)
 
-#split the dataset: https://topepo.github.io/caret/data-splitting.html
+# split the dataset -----------------
+#https://topepo.github.io/caret/data-splitting.html
 set.seed(100)
+
+#because slices within specimens are not independent from another, need to randomly sample specimens, not slices
+
 inTrain<-createDataPartition(y=classification.set$genus, p=0.7, list=FALSE)
 
-?
+?createDataPartition
 #create training and testing dataset. Validation will be carried out on the 'testing' dataset
 #(remaining 20% of sample)
 training<-classification.set[inTrain,]

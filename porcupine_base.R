@@ -8,7 +8,8 @@ library(caret)
 library(inlmisc) #for more Paul Tol color options
 library(reshape2) #for reformatting linear data to facet
 
-scriptsdir <- "C://scripts/porcupine-teeth"
+# scriptsdir <- "C://scripts/porcupine-teeth"
+scriptsdir <- "C://cygwin/home/N.S/scripts/porcupine-teeth"
 source(paste(scriptsdir,"/../observer-free-morphotype-characterization/find_repeatablePCs.R",sep=""))
 source(paste(scriptsdir,"/calculate_error.R",sep=""))
 
@@ -22,7 +23,8 @@ scale_slice<-as.character(GetColors(9,scheme="discrete rainbow"))
 scale_taxon<-as.character(GetColors(9,scheme="muted"))
 
 # Data Input ------
-setwd("D://Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
+# setwd("D://Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
+setwd("C://Users/N.S/Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
 
 #read in Procrustes Aligned coordinates
 lm.raw<-readland.tps("digitized_aligned.tps")
@@ -100,35 +102,36 @@ metadata.avg$Taxon<-paste(metadata.avg$Genus,metadata.avg$Species)
 # cbind(metadata.avg$Identity,lm.2d.avg$Identity)
 
 lm.2d.avg<-lm.2d.avg %>% select(-Identity) %>% as.matrix
-# PCA -----------
-PCA<-prcomp(lm.2d.avg, scale.=FALSE)
-PCA.perc<-round(summary(PCA)$importance[2,]*100,1)
-metadata.avg$PC1<-PCA$x[,1]
-metadata.avg$PC2<-PCA$x[,2]
-
-ggplot(data=metadata.avg,aes(x=PC1,y=PC2))+
-  geom_point(size=2,aes(color = Taxon, shape=Taxon)) +
-  theme_classic() +
-  xlab(paste("PC 1 (",PCA.perc[1],"%)",sep="")) +
-  ylab(paste("PC 2 (",PCA.perc[2],"%)",sep="")) + 
-  scale_color_manual(values=scale_taxon) +
-  scale_shape_manual(values=c(rep(16,6), 17, 15)) + 
-  theme(legend.text=element_text(face="italic"))
-ggsave("PCA_spp.pdf", device = cairo_pdf, width = 12, height = 8,units="cm",dpi=600)
-
-ggplot(data=metadata.avg,aes(x=PC1,y=PC2))+
-  geom_point(size=2,aes(color = factor(Slice_from_Base), shape=Taxon)) +
-  theme_classic() +
-  xlab(paste("PC 1 (",PCA.perc[1],"%)",sep="")) +
-  ylab(paste("PC 2 (",PCA.perc[2],"%)",sep="")) + 
-  scale_color_manual(name="Slice",values=scale_slice) +
-  scale_shape_manual(values=c(rep(16,6), 17, 15))
-ggsave("PCA_wear2.pdf", device = cairo_pdf, width = 12, height = 12,units="cm",dpi=600)
+# # PCA -----------
+# PCA<-prcomp(lm.2d.avg, scale.=FALSE)
+# PCA.perc<-round(summary(PCA)$importance[2,]*100,1)
+# metadata.avg$PC1<-PCA$x[,1]
+# metadata.avg$PC2<-PCA$x[,2]
+# 
+# ggplot(data=metadata.avg,aes(x=PC1,y=PC2))+
+#   geom_point(size=2,aes(color = Taxon, shape=Taxon)) +
+#   theme_classic() +
+#   xlab(paste("PC 1 (",PCA.perc[1],"%)",sep="")) +
+#   ylab(paste("PC 2 (",PCA.perc[2],"%)",sep="")) + 
+#   scale_color_manual(values=scale_taxon) +
+#   scale_shape_manual(values=c(rep(16,6), 17, 15)) + 
+#   theme(legend.text=element_text(face="italic"))
+# ggsave("PCA_spp.pdf", device = cairo_pdf, width = 12, height = 8,units="cm",dpi=600)
+# 
+# ggplot(data=metadata.avg,aes(x=PC1,y=PC2))+
+#   geom_point(size=2,aes(color = factor(Slice_from_Base), shape=Taxon)) +
+#   theme_classic() +
+#   xlab(paste("PC 1 (",PCA.perc[1],"%)",sep="")) +
+#   ylab(paste("PC 2 (",PCA.perc[2],"%)",sep="")) + 
+#   scale_color_manual(name="Slice",values=scale_slice) +
+#   scale_shape_manual(values=c(rep(16,6), 17, 15))
+# ggsave("PCA_wear2.pdf", device = cairo_pdf, width = 12, height = 12,units="cm",dpi=600)
 
 # Remove Fossil -----
 lm.2d.extant<-lm.2d.avg[-which(metadata.avg$Species %in% c("kleini")),]
 metadata.extant<-metadata.avg[-which(metadata.avg$Species %in% c("kleini")),]
 
+metadata.avg$anterofossettid_angle[which(metadata.avg$Species=="kleini")]
 #check for match
 # dim(metadata.extant)
 # dim(lm.2d.extant)
@@ -136,9 +139,8 @@ metadata.extant<-metadata.avg[-which(metadata.avg$Species %in% c("kleini")),]
 # # Procrustes ANOVA -----
 # source(paste(scriptsdir,"Procrustes_ANOVA.R",sep="/"))
 # Traditional Morphometrics -------
-dim(metadata.extant)
-head(metadata.extant)
 
+#plot the data
 metadata.extant<- metadata.extant %>% mutate("Anterofossettid Ratio" = anterofossettid_length/anterofossettid_width,
                            "Hypolophid Ratio" = max_length_hypolophid/max_length_mesoflexid,
                            "Ectolophid Ratio" = ectolophid_width/talonid_width,
@@ -165,8 +167,8 @@ ggplot(linear2plot, aes(x=Genus, y = value)) +
 ggsave("linear_boxplots.pdf", device = cairo_pdf, width = double.column.width, 
        height = double.column.width,units="in",dpi=600)
 
-
-# variables for plotting categorical
+# variables for plotting categorical variable
+metadata.extant$"Metaflexid Closure"<-metadata.extant$metaflexid
 metadata.extant$metaflexid_closure<-"closed" #metaflexid closed
 metadata.extant$metaflexid_closure[which(metadata.extant$metaflexid==1)]<-"open" #metaflexid open
 metadata.extant$genus_state_metaflexid<-paste(metadata.extant$metaflexid_closure, metadata.extant$Genus)
@@ -180,38 +182,34 @@ ggplot(data = count_metaflexid, aes(x = genus_state_metaflexid, y = Slice_from_B
 ggsave("metaflexid_open.pdf", device = cairo_pdf, width = single.column.width, 
        height = single.column.width,units="in",dpi=600)
 
+#ANOVAs
+fit <- lm(`Anterofossettid Angle` ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
+Anova(fit, type=2) %>% write.csv("ANOVA_anterofossettid_angle.csv")
 
+fit <- lm(`Anterofossettid Ratio` ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
+Anova(fit, type=2) %>% write.csv("ANOVA_anterofossettid_ratio.csv")
 
-?GetColors
+fit <- lm(`Hypolophid Ratio` ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
+Anova(fit, type=2)  %>% write.csv("ANOVA_hypolophid_ratio.csv")
+
+fit <- lm(`Ectolophid Radio` ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
+Anova(fit, type=2) %>% write.csv("ANOVA_ectolophid_ratio.csv")
+
+fit <- lm(`Posterolophid Evenness` ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
+Anova(fit, type=2) %>% write.csv("ANOVA_posterolophid.csv")
 
 fit <- lm(metaflexid ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
-Anova(fit, type=2)
+Anova(fit, type=2) %>% write.csv("ANOVA_metaflexid.csv")
 
-fit <- lm(anterofossettid_angle ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
-Anova(fit, type=2)
+#calculate means and standard deviations
+univariate.means<-dcast(linear2plot, Genus ~ variable, mean)
+univariate.sds<-dcast(linear2plot, Genus ~ variable, sd)
 
-fit <- lm(anterofossettid_ratio ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
-Anova(fit, type=2)
+rbind(univariate.means, univariate.sds) %>% write.csv("univariate_summary_stats.csv") 
 
-fit <- lm(mesolophid_ratio ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
-Anova(fit, type=2)
-
-fit <- lm(ectolophid_ratio ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
-Anova(fit, type=2)
-
-fit <- lm(posterolophid_evenness ~ Genus + Slice_from_Base + Genus:Slice_from_Base, data = metadata.extant)
-Anova(fit, type=2)
-
-# linear.PCA<-metadata.extant %>% ungroup %>% select(anterofossettid_angle,mesolophid_ratio,
-#                                                    ectolophid_ratio,posterolophid_evenness) %>%
-#   prcomp(center = TRUE, scale. = TRUE)
-# 
-# plot(linear.PCA$x[,1:2],pch=c(21,22)[factor(metadata.extant$Genus)],bg = ptol_pal()(9)[metadata.extant$Slice_from_Base])
-# 
-# summary(linear.PCA)
-
-
-
+# machine learning -------
+#variable choice
+source(paste(scriptsdir,"/Choosing_PCs.R",sep=""))
 # Crown Height ------
 #in mm, how much height of the tooth is sampled?
 #FIX THIS TO MORE ACCURATELY INCLUDE #of images between slices
