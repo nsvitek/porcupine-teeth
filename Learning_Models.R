@@ -1,59 +1,34 @@
-library(geomorph)
-library(caret)
-library(dplyr)
-library(ggfortify)
+#set up tables for storing replicate results ------
+remodel<-100 #number of times to reassign specimens and build new models
 
-setwd("E:\\Pilot_Dataset_3_Digitized")
+#empty array to hold multiple confusion matrices
+#Note (because I can't figure out how to set this info in dimnames): rows are predicted, cols are reference
+total.confusion<-array(dim=c(2,2,remodel))
+dimnames(total.confusion)[1:2]<-list(c("Coendou","Erethizon"),c("Coendou","Erethizon"))
 
-#settings for classification following Courtenay et al. 2019
-replicates=1000
+#empty array to hold model metrics
+empty.col<-rep(NA,remodel)
+total.eval<-data.frame(N_train = empty.col, N_test = empty.col, 
+                       Sensitivity = empty.col, Specificity = empty.col, 
+                       PPV = empty.col, NPV = empty.col, Accuracy = empty.col, 
+                       Kappa = empty.col, AUC = empty.col)
 
-lm.raw<-readland.tps("digitized_aligned.tps")
-dim(lm.raw)
-lm.2d<-two.d.array(lm.raw)
+lda.total.confusion<-rf.total.confusion<-svm.total.confusion<-total.confusion
+lda.total.eval<-rf.total.eval<-svm.total.eval<-total.eval
 
-metadata<-read.csv("Digitized_Porcupine_Dataset_3.csv")
-metadata$Genus <- factor(metadata$Genus)
-head(metadata)
+assign.fossil<-total.confusion
+rownames(assign.fossil)<-c("UF-UF-21743-00","UF-UF-21743-01")
+lda.total.fossil<-rf.total.fossil<-svm.total.fossil<-assign.fossil
 
-PCA<-prcomp(lm.2d, scale.=FALSE)
-#summary(PCA)
-autoplot(PCA, data=metadata, colour='Genus')
-metadata[which(PCA$x[,1]< -0.05 & PCA$x[,2]< -0.1),]
-#using only the first 25PCs
-pca_matrix <- PCA$x[,1:25]
+#build objects to keep track of misidentified specimens
+misclassify<-vector(mode="list",length=remodel)
+lda.misclassify<-rf.misclassify<-svm.misclassify<-misclassify
 
-total_data<-data.frame(Genus=metadata$Genus, pca_matrix)
-#head(total_data)
-dim(total_data)
-#214  26
-
-#splitting the extincted specimens out
-extincted.id<-which(metadata$Specimen%in%c("UF-UF-21473","UF-UF-223810",
-                                           "UF-UF-121740"))
-extincted.testing <- total_data[extincted.id,]
-model_data<-total_data[-extincted.id,]
-#head(model_data)
-
-#Randomly selects p% of all samples
-set.seed(107)
-
-inTrain <- createDataPartition(
-  y =model_data$Genus,
-  ## the outcome data are needed
-  p = .75,
-  ## The percentage of data in the
-  ## training set
-  list = FALSE
-)
-
-#Setting up the training and testing gdf
-training <- model_data[ inTrain,]
-testing  <- model_data[-inTrain,]
-dim(training)
-dim(testing)
-dim(extincted.testing)
-head(training)
+#using difference dataset from "Choosing_PCs.R" because want extinct specimen included
+model_data<-data.frame(genus = as.factor(metadata.avg$Genus),PCA$x[,PCs])
+extinct<-which(metadata.avg$Species=="kleini")
+extinct.testing<-model_data[extinct,]
+dim(extinct.testing)
 
 #change evaluation to k-fold cross-validation ['repeatedcv'] instead of default bootstrapping
 ctrl <- trainControl(
@@ -63,138 +38,283 @@ ctrl <- trainControl(
   summaryFunction = twoClassSummary
 )
 
-#-------------------------Partial least squares regression---------------------------------------
-#Training using PLS method
-set.seed(123)
-plsFit <- train(
-  Genus~ .,
-  data = training,
-  method = "pls",
-  preProc = c("center", "scale"),
-  tuneLength = 15,
-  trControl = ctrl,
-  metric = "ROC"
-)
+performance_metric<-"ROC" #"Accuracy" or "ROC"?
 
-plsFit
-ggplot(plsFit)
+start.seed<-100
+i<-1
 
-#Testing on test set
-plsClasses <- predict(plsFit, newdata = testing)
-plsProbs <- predict(plsFit, newdata = testing, type = "prob")
-#looking at which wrong are incorrectly predicted
-confusionMatrix(data = plsClasses, testing$Genus)
-wrong_pred <- which(plsClasses!=testing$Genus)
-metadata[-c(extincted.id,inTrain),][wrong_pred,]
-unique(metadata[-c(extincted.id,inTrain),][wrong_pred,]$Specimen)
+####################### start loop here --------------
+source(source(paste(scriptsdir,"/Train_n_Test.R",sep="")))
+############## End Loop ---------
+write.csv(lda.total.confusion,"LDA_confusion.csv")
+write.csv(lda.total.eval,"LDA_evaluation.csv")
 
-#Testing on extinct set
-plsClasses <- predict(plsFit, newdata = extincted.testing)
-plsProbs <- predict(plsFit, newdata = extincted.testing, type = "prob")
+write.csv(rf.total.confusion,"RF_confusion.csv")
+write.csv(rf.total.eval,"RF_evaluation.csv")
 
-#looking at which wrong are incorrectly predicted
-confusionMatrix(data = plsClasses, extincted.testing$Genus)
-wrong_pred <- which(plsClasses!=extincted.testing$Genus)
-raw_id <- extincted.id[wrong_pred]
-metadata[raw_id,]
-unique(metadata[raw_id,]$Specimen)
+write.csv(svm.total.confusion,"SVM_confusion.csv")
+write.csv(svm.total.eval,"SVM_evaluation.csv")
 
-#-------------------------Regularized Discriminant Analysis---------------------------------------
-#Training using rda method
-rdaGrid = data.frame(gamma = (0:4)/4, lambda = 3/4)
-set.seed(123)
-rdaFit <- train(
-  Genus ~ .,
-  data = training,
-  method = "rda",
-  tuneGrid = rdaGrid,
-  trControl = ctrl,
-  metric = "ROC"
-)
-rdaFit
+write.csv(lda.total.fossil,"LDA_total_fossil.csv")
+write.csv(rf.total.fossil,"RF_total_fossil.csv")
+write.csv(svm.total.fossil,"SVM_total_fossil.csv")
 
-#Tesing rda model with testing data
-rdaClasses <- predict(rdaFit, newdata = testing)
-rdaProbs <- predict(rdaFit, newdata = testing, type = "prob")
-confusionMatrix(rdaClasses, testing$Genus)
-#check which ones gives wrong predictions
-wrong_pred <- which(rdaClasses!=testing$Genus)
-metadata[-c(extincted.id,inTrain),][wrong_pred,]
-unique(metadata[-c(extincted.id,inTrain),][wrong_pred,]$Specimen)
+sink("LDA_misclassify.txt")
+print(lda.misclassify)
+sink()
 
-#Tesing rda model with extinct data
-rdaClasses <- predict(rdaFit, newdata = extincted.testing)
-rdaProbs <- predict(rdaFit, newdata = extincted.testing, type = "prob")
-#looking at which wrong are incorrectly predicted
-confusionMatrix(data = rdaClasses, extincted.testing$Genus)
-wrong_pred <- which(rdaClasses!=extincted.testing$Genus)
-raw_id <- extincted.id[wrong_pred]
-metadata[raw_id,]
-unique(metadata[raw_id,]$Specimen)
+sink("RF_misclassify.txt")
+print(rf.misclassify)
+sink()
 
-#-------------------------Random Forest---------------------------------------
-#Training using RF method
-rfFit <- train(
-  Genus ~ ., #model: predict genus using the rest of the variables
-  data = training,
-  method = "rf",
-  tuneLength=15, #can change to 15 and see what happens
-  trControl = ctrl,
-) #implement the ctrl evaluation settings specified above
-rfFit
-#compoent gives optimal when=4?
-ggplot(rfFit)
+sink("SVM_misclassify.txt")
+print(svm.misclassify)
+sink()
+# Compare Models ------
+#find the average confusion matrix
+all.eval<-rbind(lda.total.eval, rf.total.eval,svm.total.eval)
+all.eval$Algorithm<-rep(c("LDA","RF","SVM"),each=remodel)
 
-#Tesing rf model with testing data
-rfClasses <- predict(rfFit, newdata = testing)
-rfProbs <- predict(rfFit, newdata = testing, type = "prob")
+#create a faceted plot like Puschel et al. 2018: each facet a metric, three rows for each model,
+#and a simple line plot: geom_pointrange()
+all.eval.long<-melt(all.eval,id.vars=c("Algorithm","N_train","N_test"))
+head(all.eval.long)
 
-#looking at which wrong are incorrectly predicted
-confusionMatrix(rfClasses, testing$Genus)
-wrong_pred <- which(rfClasses!=testing$Genus)
-metadata[-c(extincted.id,inTrain),][wrong_pred,]
-unique(metadata[-c(extincted.id,inTrain),][wrong_pred,]$Specimen)
+ggplot(data=all.eval.long, aes(x=value, y = Algorithm)) + 
+  geom_line() +
+  stat_summary(fun.data = "mean_cl_normal") +
+  facet_wrap(vars(variable), strip.position="top") + theme_minimal() +
+  theme(axis.title.x = element_blank())
+ggsave("machine_learning_eval.pdf", device = cairo_pdf, width = double.column.width, 
+       height = double.column.width,units="in",dpi=600)
 
-#Tesing rf model with extinct data
-rfClasses <- predict(rfFit, newdata = extincted.testing)
-rfProbs <- predict(rfFit, newdata = extincted.testing, type = "prob")
+#Create a table for reporting mean and sd values
+all.eval %>% group_by(Algorithm) %>% summarise_all(list(mean,sd), na.rm=T) %>% write.csv("model_evaluation.csv")
 
-#looking at which wrong are incorrectly predicted
-confusionMatrix(data = rfClasses, extincted.testing$Genus)
-wrong_pred <- which(rfClasses!=extincted.testing$Genus)
-raw_id <- extincted.id[wrong_pred]
-metadata[raw_id,]
-unique(metadata[raw_id,]$Specimen)
 
-#-------------------------Suppor Vector Machine---------------------------------------
-#svm learning model setup
-svmFit <- train(
-  Genus ~ ., #model: predict genus using the rest of the variables
-  data = training,
-  method = "svmRadial",
-  tuneLength=10, #can change to 15 and see what happens
-  trControl = ctrl,
-) #implement the ctrl evaluation settings specified above
-svmFit
-ggplot(svmFit)
+# compare confusion matrices -------
+mean.lda.confusion<-apply(lda.total.confusion, c(1,2), mean)
+sd.lda.confusion<-apply(lda.total.confusion, c(1,2), sd)
+mean.rf.confusion<-apply(rf.total.confusion, c(1,2), mean)
+sd.rf.confusion<-apply(rf.total.confusion, c(1,2), sd)
+mean.svm.confusion<-apply(svm.total.confusion, c(1,2), mean)
+sd.svm.confusion<-apply(svm.total.confusion, c(1,2), sd)
 
-#Tesing svm on test set
-svmClasses<-predict(svmFit, newdata = testing) #example of possibilities for regression instead of categorical
-svmProbs <- predict(svmFit, newdata = testing, type = "prob")
+mean.lda.fossil<-apply(lda.total.fossil, c(1,2), mean)
+sd.lda.fossil<-apply(lda.total.fossil, c(1,2), sd)
+mean.rf.fossil<-apply(rf.total.fossil, c(1,2), mean)
+sd.rf.fossil<-apply(rf.total.fossil, c(1,2), sd)
+mean.svm.fossil<-apply(svm.total.fossil, c(1,2), mean)
+sd.svm.fossil<-apply(svm.total.fossil, c(1,2), sd)
 
-#looking at which wrong are incorrectly predicted
-confusionMatrix(svmClasses, testing$Genus)
-wrong_pred <- which(svmClasses!=testing$Genus)
-metadata[-c(extincted.id,inTrain),][wrong_pred,]
-unique(metadata[-c(extincted.id,inTrain),][wrong_pred,]$Specimen)
+rbind(mean.lda.confusion,sd.lda.confusion,
+      mean.rf.confusion,sd.rf.confusion,
+      mean.svm.confusion,sd.svm.confusion,
+      mean.lda.fossil,sd.lda.fossil,
+      mean.rf.fossil,sd.rf.fossil,
+      mean.svm.fossil,sd.svm.fossil) %>% write.csv("confusion_summary.csv")
 
-#Tesing svm on extinct set
-svmClasses<-predict(svmFit, newdata = extincted.testing) #example of possibilities for regression instead of categorical
-svmProbs <- predict(svmFit, newdata = extincted.testing, type = "prob")
+confusion.table<-data.frame(predicted.class=factor(c("C","E","C","E")),
+                            reference.class=factor(c("C","C","E","E")),
+                            mean.lda.confusion=as.vector(mean.lda.confusion) %>% round(1),
+                            sd.lda.confusion=as.vector(sd.lda.confusion) %>% round(1),
+                            mean.rf.confusion=as.vector(mean.rf.confusion) %>% round(1),
+                            sd.rf.confusion=as.vector(sd.rf.confusion) %>% round(1),
+                            mean.svm.confusion=as.vector(mean.svm.confusion) %>% round(1),
+                            sd.svm.confusion=as.vector(sd.svm.confusion) %>% round(1))
 
-#looking at which wrong are incorrectly predicted
-confusionMatrix(data = svmClasses, extincted.testing$Genus)
-wrong_pred <- which(svmClasses!=extincted.testing$Genus)
-raw_id <- extincted.id[wrong_pred]
-metadata[raw_id,]
-unique(metadata[raw_id,]$Specimen)
+confusion.table <- confusion.table %>%
+  mutate(Classification = ifelse(predicted.class == reference.class, "correct", "incorrect")) %>%
+  group_by(reference.class) %>%
+  mutate(prop.lda = mean.lda.confusion/sum(mean.lda.confusion),
+         prop.rf = mean.rf.confusion/sum(mean.rf.confusion),
+         prop.svm = mean.svm.confusion/sum(mean.svm.confusion))
+
+# fill alpha relative to sensitivity/specificity by proportional outcomes within reference groups (see dplyr code above as well as original confusion matrix for comparison)
+confuse.lda<-ggplot(data = confusion.table, mapping = aes(x = reference.class, 
+                    y = predicted.class, fill = Classification)) +
+  geom_tile(alpha = confusion.table$prop.lda) +
+  geom_text(aes(label = paste(mean.lda.confusion,"\n(",sd.lda.confusion,")",sep="")), 
+            vjust = .5, fontface  = "bold", alpha = .5) +
+  scale_fill_manual(values = c(correct = scale_n[3], incorrect = scale_n[10])) +
+  theme_minimal() + ylab("Predicted Genus") +
+  theme(axis.title.x=element_blank(),panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(face="italic"),legend.position = "none",
+        axis.text.y = element_text(face="italic", angle=90), 
+        axis.title.y=element_text(size=8))+  
+  ylim(rev(levels(confusion.table$reference.class)))
+
+confuse.rf<-ggplot(data = confusion.table, 
+             mapping = aes(x = reference.class, y = predicted.class, fill = Classification)) +
+  geom_tile(alpha = confusion.table$prop.rf) +
+  geom_text(aes(label = paste(mean.rf.confusion,"\n(",sd.rf.confusion,")",sep="")), 
+            vjust = .5, fontface  = "bold", alpha = 1) +
+  scale_fill_manual(values = c(correct = scale_n[3], incorrect = scale_n[10])) +
+  theme_minimal() + ylab("Predicted Genus")+
+  theme(axis.title.x=element_blank(),panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(face="italic"),legend.position = "none",
+        axis.text.y = element_text(face="italic", angle=90), 
+        axis.title.y=element_text(size=8)) +  
+  ylim(rev(levels(confusion.table$reference.class)))
+
+confuse.svm<-ggplot(data = confusion.table, 
+                   mapping = aes(x = reference.class, y = predicted.class, fill = Classification)) +
+  geom_tile(alpha = confusion.table$prop.svm) +
+  geom_text(aes(label = paste(mean.svm.confusion,"\n(",sd.svm.confusion,")",sep="")), 
+            vjust = .5, fontface  = "bold", alpha = 1) +
+  scale_fill_manual(values = c(correct = scale_n[3], incorrect = scale_n[10])) +
+  theme_minimal()  + xlab("Reference Genus") + ylab("Predicted Genus")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text.x = element_text(face="italic"),legend.position = "none",
+        axis.text.y = element_text(face="italic", angle=90), 
+        axis.title.y=element_text(size=8),
+        axis.title.x=element_text(size=8))+
+  ylim(rev(levels(confusion.table$reference.class)))
+
+gc<-grid.arrange(confuse.lda,confuse.rf,confuse.svm, ncol=2,nrow=2)
+ggsave("confusion_tables.pdf", gc,
+         device = cairo_pdf, width = single.column.width,
+       height=single.column.width, units="in",dpi=600)
+
+ggsave("confusion_legend.pdf", confuse.svm + theme(legend.position = "right"), device = cairo_pdf, width = single.column.width,
+       height=single.column.width, units="in",dpi=600)
+# Examine misclassified images -----
+#calculate baseline frequencies
+count.slices<-as.factor(metadata.extant$Slice_from_Base) %>% summary()
+freq.slices<-count.slices/nrow(metadata.extant)
+plot.freq.slice<-data.frame(Frequency=freq.slices,
+                            Slice=names(freq.slices))
+
+count.specimens<-as.factor(metadata.extant$Specimen) %>% summary()
+freq.specimens<-count.specimens/nrow(metadata.extant)
+
+plot.freq.spec<-data.frame(Frequency=freq.specimens,
+                           Specimen=names(freq.specimens))
+
+#LDA
+lda.freq<-lda.misclassify %>% unlist %>% as.factor() %>% summary() %>% as.data.frame
+lda.freq$Specimen<-lda.freq %>% rownames %>% sub("(.*)_M3_([0-9]*)", "\\1",.)
+lda.freq$Slice<-lda.freq %>% rownames %>% sub("(.*)_M3_([0-9]*)", "\\2",.)
+colnames(lda.freq)[1]<-"Frequency"
+lda.misclassify.all<-lda.freq[rep(row.names(lda.freq), lda.freq$Frequency), ]
+lda.freq.slice<-lda.misclassify.all$Slice %>% as.factor %>% summary()/nrow(lda.misclassify.all)
+lda.freq.specimen<-lda.misclassify.all$Specimen %>% as.factor %>% summary()/nrow(lda.misclassify.all)
+
+plot.freq.spec$MF.lda<-0.0
+plot.freq.spec$MF.lda[match(names(lda.freq.specimen),rownames(plot.freq.spec))]<-lda.freq.specimen
+plot.freq.spec$RMF.lda<-plot.freq.spec$MF.lda/plot.freq.spec$Frequency
+
+plot.freq.slice$MF.lda<-0.0
+plot.freq.slice$MF.lda[match(names(lda.freq.slice),rownames(plot.freq.slice))]<-lda.freq.slice
+plot.freq.slice$RMF.lda<-plot.freq.slice$MF.lda/plot.freq.slice$Frequency
+
+#RF 
+rf.freq<-rf.misclassify %>% unlist %>% as.factor() %>% summary() %>% as.data.frame
+rf.freq$Specimen<-rf.freq %>% rownames %>% sub("(.*)_M3_([0-9]*)", "\\1",.)
+rf.freq$Slice<-rf.freq %>% rownames %>% sub("(.*)_M3_([0-9]*)", "\\2",.)
+colnames(rf.freq)[1]<-"Frequency"
+rf.misclassify.all<-rf.freq[rep(row.names(rf.freq), rf.freq$Frequency), ]
+rf.freq.slice<-rf.misclassify.all$Slice %>% as.factor %>% summary()/nrow(rf.misclassify.all)
+rf.freq.specimen<-rf.misclassify.all$Specimen %>% as.factor %>% summary()/nrow(rf.misclassify.all)
+
+plot.freq.spec$MF.rf<-0.0
+plot.freq.spec$MF.rf[match(names(rf.freq.specimen),rownames(plot.freq.spec))]<-rf.freq.specimen
+plot.freq.spec$RMF.rf<-plot.freq.spec$MF.rf/plot.freq.spec$Frequency
+
+plot.freq.slice$MF.rf<-0.0
+plot.freq.slice$MF.rf[match(names(rf.freq.slice),rownames(plot.freq.slice))]<-rf.freq.slice
+plot.freq.slice$RMF.rf<-plot.freq.slice$MF.rf/plot.freq.slice$Frequency
+
+#SVM
+svm.freq<-svm.misclassify %>% unlist %>% as.factor() %>% summary() %>% as.data.frame
+svm.freq$Specimen<-svm.freq %>% rownames %>% sub("(.*)_M3_([0-9]*)", "\\1",.)
+svm.freq$Slice<-svm.freq %>% rownames %>% sub("(.*)_M3_([0-9]*)", "\\2",.)
+colnames(svm.freq)[1]<-"Frequency"
+svm.misclassify.all<-svm.freq[rep(row.names(svm.freq), svm.freq$Frequency), ]
+svm.freq.slice<-svm.misclassify.all$Slice %>% as.factor %>% summary()/nrow(svm.misclassify.all)
+svm.freq.specimen<-svm.misclassify.all$Specimen %>% as.factor %>% summary()/nrow(svm.misclassify.all)
+
+plot.freq.spec$MF.svm<-0.0
+plot.freq.spec$MF.svm[match(names(svm.freq.specimen),rownames(plot.freq.spec))]<-svm.freq.specimen
+plot.freq.spec$RMF.svm<-plot.freq.spec$MF.svm/plot.freq.spec$Frequency
+
+plot.freq.slice$MF.svm<-0.0
+plot.freq.slice$MF.svm[match(names(svm.freq.slice),rownames(plot.freq.slice))]<-svm.freq.slice
+plot.freq.slice$RMF.svm<-plot.freq.slice$MF.svm/plot.freq.slice$Frequency
+
+# plot misclassification frequencies -------
+plot.lda.spec<-ggplot(plot.freq.spec, aes(x=Specimen, y=RMF.lda)) +
+  geom_hline(yintercept=1,lty=2) +
+  geom_segment( aes(x=Specimen, xend=Specimen, y=0, yend=RMF.lda), color=scale_n[8]) +
+  geom_point(size=3,color=scale_n[10],alpha=1) +
+  theme_light() +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),axis.title.x=element_blank(),
+    axis.ticks.y = element_blank(),axis.text.y=element_text(size=8))
+plot.lda.slice<-ggplot(plot.freq.slice, aes(x=Slice, y=RMF.lda)) +
+  geom_hline(yintercept=1,lty=2) +
+  geom_segment( aes(x=Slice, xend=Slice, y=0, yend=RMF.lda), color=scale_n[8]) +
+  geom_point(size=3,color=scale_n[10],alpha=1) +
+  theme_light() + ylab("Relative Misclassification Frequency") +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),axis.text.y=element_text(size=8),
+    panel.border = element_blank(),axis.title.x=element_text(size=8),
+    axis.ticks.y = element_blank())
+
+plot.rf.spec<-ggplot(plot.freq.spec, aes(x=Specimen, y=RMF.rf)) +
+  geom_hline(yintercept=1,lty=2) +
+  geom_segment( aes(x=Specimen, xend=Specimen, y=0, yend=RMF.rf), color=scale_n[8]) +
+  geom_point(size=3,color=scale_n[10],alpha=1) +
+  theme_light() +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),axis.title.y=element_blank(),
+    axis.title.x=element_blank(),axis.text.y=element_blank(),
+    axis.ticks.y = element_blank())
+plot.rf.slice<-ggplot(plot.freq.slice, aes(x=Slice, y=RMF.rf)) +
+  geom_hline(yintercept=1,lty=2) +
+  geom_segment( aes(x=Slice, xend=Slice, y=0, yend=RMF.rf), color=scale_n[8]) +
+  geom_point(size=3,color=scale_n[10],alpha=1) +
+  theme_light() + ylab("Relative Misclassification Frequency") +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),axis.title.y=element_blank(),
+    axis.text.y=element_blank(),axis.title.x=element_text(size=8),
+    axis.ticks.y = element_blank())
+plot.svm.spec<-ggplot(plot.freq.spec, aes(x=Specimen, y=RMF.svm)) +
+  geom_hline(yintercept=1,lty=2) +
+  geom_segment( aes(x=Specimen, xend=Specimen, y=0, yend=RMF.svm), color=scale_n[8]) +
+  geom_point(size=3,color=scale_n[10],alpha=1) +
+  theme_light() +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),axis.title.y=element_blank(),
+    axis.text.y=element_blank(),axis.title.x=element_blank(),
+    axis.ticks.y = element_blank())
+plot.svm.slice<-ggplot(plot.freq.slice, aes(x=Slice, y=RMF.svm)) +
+  geom_hline(yintercept=1,lty=2) +
+  geom_segment( aes(x=Slice, xend=Slice, y=0, yend=RMF.svm), color=scale_n[8]) +
+  geom_point(size=3,color=scale_n[10],alpha=1) +
+  theme_light() + ylab("Relative Misclassification Frequency") +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),axis.title.y=element_blank(),
+    axis.text.y=element_blank(),axis.title.x=element_text(size=8),
+    axis.ticks.y = element_blank())
+
+
+
+g<-grid.arrange(plot.lda.spec,plot.rf.spec,plot.svm.spec,
+             plot.lda.slice, plot.rf.slice, plot.svm.slice,
+             ncol=3,nrow=2,widths=c(2.5,2,2),heights=c(3,2))
+ggsave("misclassification_freq.pdf", g, device = cairo_pdf, width = double.column.width, 
+       height = 4,units="in",dpi=600)

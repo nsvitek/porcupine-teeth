@@ -7,13 +7,16 @@ library(car) #modelling of ratios
 library(caret)
 library(inlmisc) #for more Paul Tol color options
 library(reshape2) #for reformatting linear data to facet
+library(gridExtra) #for multiplotting learning models
 
-# scriptsdir <- "C://scripts/porcupine-teeth"
-scriptsdir <- "C://cygwin/home/N.S/scripts/porcupine-teeth"
+
+
+scriptsdir <- "C://scripts/porcupine-teeth"
+# scriptsdir <- "C://cygwin/home/N.S/scripts/porcupine-teeth"
 source(paste(scriptsdir,"/../observer-free-morphotype-characterization/find_repeatablePCs.R",sep=""))
 source(paste(scriptsdir,"/calculate_error.R",sep=""))
 
-iterations<-99 #bootstrap number, low for now, increase for final calcs
+replicates<-1000 #bootstrap number, low for now, increase for final calcs
 
 #for plotting
 single.column.width<-3.27
@@ -23,8 +26,8 @@ scale_slice<-as.character(GetColors(9,scheme="discrete rainbow"))
 scale_taxon<-as.character(GetColors(9,scheme="muted"))
 
 # Data Input ------
-# setwd("D://Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
-setwd("C://Users/N.S/Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
+setwd("D://Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
+# setwd("C://Users/N.S/Dropbox/Documents/research/mammals/porcupines/dental_variation/Pilot_Dataset_3_Digitized")
 
 #read in Procrustes Aligned coordinates
 lm.raw<-readland.tps("digitized_aligned.tps")
@@ -54,7 +57,7 @@ sink()
 # error_gdf<-geomorph.data.frame(coords=lm.2d, identity=factor(metadata$Identity))
 # 
 # #Procrustes Regression
-# errorANOVA<-procD.lm(coords~identity,data=error_gdf,iter=iterations)
+# errorANOVA<-procD.lm(coords~identity,data=error_gdf,iter=replicates)
 # #Procrustes ANOVA
 # errorANOVA$aov.table
 # #error on landmarking due to size by keeping the same specimen but varying the size
@@ -102,12 +105,14 @@ metadata.avg$Taxon<-paste(metadata.avg$Genus,metadata.avg$Species)
 # cbind(metadata.avg$Identity,lm.2d.avg$Identity)
 
 lm.2d.avg<-lm.2d.avg %>% select(-Identity) %>% as.matrix
-# # PCA -----------
-# PCA<-prcomp(lm.2d.avg, scale.=FALSE)
-# PCA.perc<-round(summary(PCA)$importance[2,]*100,1)
+# PCA FIGURES COMMENTED OUT. UNCOMMENT FOR FINAL VERSION-----------
+PCA<-prcomp(lm.2d.avg, scale.=FALSE)
+PCA.perc<-round(summary(PCA)$importance[2,]*100,1)
+
+#plot PCA
 # metadata.avg$PC1<-PCA$x[,1]
 # metadata.avg$PC2<-PCA$x[,2]
-# 
+
 # ggplot(data=metadata.avg,aes(x=PC1,y=PC2))+
 #   geom_point(size=2,aes(color = Taxon, shape=Taxon)) +
 #   theme_classic() +
@@ -128,10 +133,18 @@ lm.2d.avg<-lm.2d.avg %>% select(-Identity) %>% as.matrix
 # ggsave("PCA_wear2.pdf", device = cairo_pdf, width = 12, height = 12,units="cm",dpi=600)
 
 # Remove Fossil -----
+metadata.avg<- metadata.avg %>% mutate("Anterofossettid Ratio" = anterofossettid_length/anterofossettid_width,
+                                             "Hypolophid Ratio" = max_length_hypolophid/max_length_mesoflexid,
+                                             "Ectolophid Ratio" = ectolophid_width/talonid_width,
+                                             "Posterolophid Evenness" = mid_posterolophid_length/max_posterolophid_length,
+                                             "Anterofossettid Angle" = anterofossettid_angle)
+
+
 lm.2d.extant<-lm.2d.avg[-which(metadata.avg$Species %in% c("kleini")),]
 metadata.extant<-metadata.avg[-which(metadata.avg$Species %in% c("kleini")),]
 
-metadata.avg$anterofossettid_angle[which(metadata.avg$Species=="kleini")]
+metadata.avg[which(metadata.avg$Species=="kleini"),] %>% print.data.frame
+
 #check for match
 # dim(metadata.extant)
 # dim(lm.2d.extant)
@@ -143,3 +156,6 @@ metadata.avg$anterofossettid_angle[which(metadata.avg$Species=="kleini")]
 # machine learning -------
 #variable choice
 source(paste(scriptsdir,"/Choosing_PCs.R",sep=""))
+
+#model building, evaluation
+source(paste(scriptsdir,"/Learning_Models.R",sep=""))

@@ -1,11 +1,5 @@
 
 #plot the data
-metadata.extant<- metadata.extant %>% mutate("Anterofossettid Ratio" = anterofossettid_length/anterofossettid_width,
-                                             "Hypolophid Ratio" = max_length_hypolophid/max_length_mesoflexid,
-                                             "Ectolophid Ratio" = ectolophid_width/talonid_width,
-                                             "Posterolophid Evenness" = mid_posterolophid_length/max_posterolophid_length,
-                                             "Anterofossettid Angle" = anterofossettid_angle)
-
 metadata.extant$Genus<-factor(metadata.extant$Genus)
 metadata.extant$Slice_from_Base<-factor(metadata.extant$Slice_from_Base)
 
