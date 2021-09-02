@@ -1,8 +1,12 @@
 freeze<-ls() #take stock of what objects are already here.
+too.worn<-which(metadata.extant$Slice_from_Base==0|metadata.extant$Slice_from_Base==1)
+
+metadata.old<-metadata.extant
+metadata.extant<-metadata.old[-too.worn,]
+
 # classification: formatting data ----------
 #we will be analyzing PC scores of the landmarks themselves. Reduces the number of variables.
-PCA.extant<-lm.2d.extant %>% prcomp(.,scale.=FALSE)
-
+PCA.extant<-lm.2d.extant[-too.worn,] %>% prcomp(.,scale.=FALSE)
 
 #we can't include all PCs in a predictive model unless we have many specimens (too many variables, over-fits)
 #consider including only the PCs that account for 95% of the data, or some other subset of PCs

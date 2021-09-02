@@ -152,10 +152,11 @@ metadata.avg[which(metadata.avg$Species=="kleini"),] %>% print.data.frame
 # # Procrustes ANOVA -----
 # source(paste(scriptsdir,"Procrustes_ANOVA.R",sep="/"))
 # #Traditional Morphometrics -------
-# source(paste(scriptsdir,"univariate_analysis.R",sep="/"))
+source(paste(scriptsdir,"univariate_analysis.R",sep="/"))
 # machine learning -------
 #variable choice
 source(paste(scriptsdir,"/Choosing_PCs.R",sep=""))
+# source(paste(scriptsdir,"/Choosing_PCs_Less_Worn.R",sep=""))
 
 #model building, evaluation
 source(paste(scriptsdir,"/Learning_Models.R",sep=""))

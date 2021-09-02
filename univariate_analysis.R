@@ -10,7 +10,7 @@ linear2plot<-metadata.extant %>% ungroup %>%
 
 
 ggplot(linear2plot, aes(x=Genus, y = value)) + 
-  geom_boxplot() + 
+  geom_boxplot(outlier.shape=NA) + 
   geom_jitter(aes(color=as.factor(Slice_from_Base)))  + 
   theme_minimal() + scale_color_manual(name="Slice",values=scale_slice) +
   # facet_grid() + 

@@ -1,6 +1,8 @@
 for(j in 1:remodel){
 # create datasets --------
 set.seed(start.seed)
+
+  
 #because slices within specimens are not independent from another, need to randomly sample at the level of specimens, not slices
 train.specimen<-factor(metadata.extant$Specimen) %>% levels() %>% 
   as.data.frame(.) %>% sample_frac(0.75)

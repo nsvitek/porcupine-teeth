@@ -30,6 +30,16 @@ extinct<-which(metadata.avg$Species=="kleini")
 extinct.testing<-model_data[extinct,]
 dim(extinct.testing)
 
+#If trying out less worn dataset, use these lines of code instead
+too.worn<-which(metadata.avg$Slice_from_Base==0|metadata.avg$Slice_from_Base==1)
+metadata.old<-metadata.avg
+metadata.avg<-metadata.avg[-too.worn,]
+model_data<-data.frame(genus = as.factor(metadata.avg$Genus),PCA$x[-too.worn,PCs])
+extinct<-which(metadata.avg$Species=="kleini")
+extinct.testing<-model_data[extinct,]
+dim(extinct.testing) #note that if just kleini, no data
+setwd("higher_slices")
+
 #change evaluation to k-fold cross-validation ['repeatedcv'] instead of default bootstrapping
 ctrl <- trainControl(
   method = "repeatedcv",
@@ -45,6 +55,9 @@ i<-1
 
 ####################### start loop here --------------
 source(source(paste(scriptsdir,"/Train_n_Test.R",sep="")))
+or 
+source(source(paste(scriptsdir,"/Train_n_Test_Less_Worn.R",sep="")))
+
 ############## End Loop ---------
 write.csv(lda.total.confusion,"LDA_confusion.csv")
 write.csv(lda.total.eval,"LDA_evaluation.csv")
