@@ -30,7 +30,7 @@ anova.result$table %>% write.csv("procrustes_anova.csv")
 # plot(fit.wear.by.genus.by.size, type = "regression", reg.type = "PredLine",
 #      predictor = ext_gdf$wear,col=ptol_pal()(2)[factor(ext_gdf$genus)],pch=19)
 cairo_pdf("ProcrustesANOVA_wear.pdf",width=single.column.width+1,height=single.column.width+1)
-plot(fit.wear.by.genus.by.size, type = "regression", reg.type = "RegScore",
+plot.me<-plot(fit.wear.by.genus.by.size, type = "regression", reg.type = "RegScore",
      predictor = ext_gdf$wear,col=ptol_pal()(2)[factor(ext_gdf$genus)],pch=c(16,17)[factor(ext_gdf$genus)],
      xlab="Wear (Slice Number)")
 legend("topleft",legend=levels(factor(ext_gdf$genus)),pch=c(16,17),col=ptol_pal()(2))
@@ -38,11 +38,28 @@ dev.off()
 # plot(fit.wear.by.genus.by.size, type = "regression", reg.type = "PredLine",
 #      predictor = log(ext_gdf$Csize),col=ptol_pal()(2)[factor(ext_gdf$genus)],pch=19)
 cairo_pdf("ProcrustesANOVA_size.pdf",width=single.column.width+1,height=single.column.width+1)
-plot(fit.wear.by.genus.by.size, type = "regression", reg.type = "RegScore",
+plot.me2<-plot(fit.wear.by.genus.by.size, type = "regression", reg.type = "RegScore",
      predictor = log(ext_gdf$Csize),col=ptol_pal()(2)[factor(ext_gdf$genus)],pch=c(16,17)[factor(ext_gdf$genus)],
      xlab="ln(Centroid Size)")
 dev.off()
 
+plot(fit.wear.by.genus.by.size, type = "regression", reg.type = "RegScore",
+     predictor = as.numeric(factor(ext_gdf$genus)),col=ptol_pal()(2)[factor(ext_gdf$genus)],pch=c(16,17)[factor(ext_gdf$genus)],
+     xlab="Genus")
+
+
+#POST-REVIEW: check y-axis between the two plots:
+pick.one<-which(log(metadata.extant$Centroid_Size)== min(log(metadata.extant$Centroid_Size)))
+plot.me$RegScore[pick.one]
+plot.me2$RegScore[pick.one]
+#from manual: "the latter [RegScore, Drake and Klingenber 2008] calculates 
+#a regression score as a 
+#projection of data on normalized vector that expresses the covariation 
+#between shape and the regression coefficients for size, conditioned on other 
+#model effects"
+
+
+ 
 # Intra-Genus Allometry -------
 #just to check: does centroid size follow the prediction that Erethizon is larger than Coendou?
 ggplot(metadata.extant,aes(x=Genus,y=Centroid_Size)) + scale_color_ptol() +
