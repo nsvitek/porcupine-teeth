@@ -16,10 +16,10 @@ errorGM<-function(ANOVA,r,f1=1,f2=2){ #f1 and f2 are which factors you want to c
 
 #used with summary results of aov() function
 #r is the number of replicates
-error.univar<-function(ANOVA,r){
+error.univar<-function(ANOVA,r,f1=1,f2=2){
   # Yezerinac et al. 1992 p. 474 % measurement error
-  s.within<-ANOVA$`Mean Sq`[2]
-  s.among<-(ANOVA$`Mean Sq`[1]-s.within)/r
+  s.within<-ANOVA$`Mean Sq`[f2]
+  s.among<-(ANOVA$`Mean Sq`[f1]-s.within)/r
   percent_measurement_error<-(s.within/(s.within+s.among))*100
   repeatability<-100-percent_measurement_error
   result<-list(repeatability,percent_measurement_error)
